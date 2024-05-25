@@ -1,0 +1,116 @@
+--postgresql kodu
+drop schema public cascade;
+create schema public;
+
+create sequence clinic_id_seq start 1;
+create sequence doctor_id_seq start 1000;
+create sequence randevu_id_seq start 1;
+create sequence muayene_id_seq start 1;
+create table KLINIK(
+	klinik_id int default nextval('clinic_id_seq'),
+	klinik_isim varchar(25) unique,
+	constraint PK_klinik primary key (klinik_id)
+);
+
+create table DOKTOR(
+	doktor_id int DEFAULT nextval('doctor_id_seq') primary key,
+	doktor_isim varchar(25),
+	doktor_soyisim varchar(25),
+	doktor_klinik_id int,
+	doktor_kullanici_adi varchar(25) unique,
+	doktor_sifre varchar(25),
+	foreign key(doktor_klinik_id) references klinik(klinik_id) on delete cascade on update cascade
+);
+
+create table HASTA(
+	hasta_tc numeric primary key,
+	hasta_isim varchar(25),
+	hasta_soyisim varchar(25),
+	hasta_yas int,
+	hasta_cinsiyet varchar(10)
+);
+
+create table RANDEVU(
+	randevu_id int default nextval('randevu_id_seq') primary key,
+	randevu_hasta_tc numeric,
+	randevu_doktor_id int,
+	randevu_klinik_id int,
+	randevu_tarihi varchar(25),
+	randevu_saati varchar(10),
+	foreign key(randevu_doktor_id) references DOKTOR(doktor_id) on delete cascade on update cascade
+);
+
+create table GOREVLI(
+	gorevli_kullanici_adi varchar(25) primary key,
+	gorevli_sifre varchar(25),
+	gorevli_tipi varchar(25)
+);
+
+create table  MUAYENE(
+	muayene_id INT default(nextval('muayene_id_seq')) PRIMARY KEY,
+	muayene_hasta_tc numeric,
+	muayene_doktor_id int,
+	muayene_fiyati int,
+        muayene_sevk varchar(500) default('Verilmedi.'),
+        muayene_recete varchar(500) default('Verilmedi.'),
+        muayene_rapor varchar(500) default('Verilmedi'),
+	muayene_odeme int default 0,
+        muayene_durum int default 0,
+	foreign key(muayene_hasta_tc) references HASTA(hasta_tc) on delete cascade on update cascade,
+	foreign key(muayene_doktor_id) references DOKTOR(doktor_id) on delete cascade on update cascade
+);
+
+create table SIGORTA(
+	sigorta_tc numeric primary key,
+	sigorta_durum boolean,
+	foreign key(sigorta_tc) references HASTA(hasta_tc)
+);
+
+create table BANKA(
+	banka_tc numeric primary key,
+	banka_kart_no varchar(20),
+	banka_kart_tarih varchar(7),
+	banka_kart_cvv varchar(3),
+	foreign key(banka_tc) references HASTA(hasta_tc)
+);
+
+create table admin(
+	admin_kullanici_adi varchar(25) primary key not null,
+	admin_sifre varchar(25) not null
+);
+alter table DOKTOR add foreign key(doktor_klinik_id) references KLINIK(klinik_id) on delete cascade on update cascade;
+
+
+
+
+CREATE OR REPLACE FUNCTION synchronize_muayene_randevu_id()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO MUAYENE(muayene_id, muayene_hasta_tc, muayene_doktor_id)
+    VALUES (NEW.randevu_id, NEW.randevu_hasta_tc, NEW.randevu_doktor_id);
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Attach the trigger to the RANDEVU table
+CREATE TRIGGER sync_muayene_randevu_id
+AFTER INSERT ON RANDEVU
+FOR EACH ROW EXECUTE FUNCTION synchronize_muayene_randevu_id();
+
+insert into admin values('yavuz','123');
+insert into klinik(klinik_isim) values('göz');
+insert into klinik(klinik_isim) values('üroloji');
+insert into klinik(klinik_isim) values('ortopedi');
+insert into klinik(klinik_isim) values('psikiyatri');
+
+insert into doktor(doktor_isim,doktor_soyisim,doktor_klinik_id,doktor_kullanici_adi,doktor_sifre) values('furkan','koçal',1,'furkan','123');
+insert into doktor(doktor_isim,doktor_soyisim,doktor_klinik_id,doktor_kullanici_adi,doktor_sifre) values('yusuf','islam',2,'yusuf','123');
+insert into doktor(doktor_isim,doktor_soyisim,doktor_klinik_id,doktor_kullanici_adi,doktor_sifre) values('fataliyev','elma',3,'fataliyev','123');
+insert into doktor(doktor_isim,doktor_soyisim,doktor_klinik_id,doktor_kullanici_adi,doktor_sifre) values('kerem','lamba',4,'kerem','123');
+
+--insert into randevu(randevu_hasta_tc,randevu_doktor_id,randevu_klinik_id,randevu_tarihi,randevu_saati) values(12345678910,1000,1,'2024-05-10','9:30');
+insert into hasta values(12345678910, 'Emirhan', 'Özsaray',12,'erkek');
+--insert into muayene(muayene_hasta_tc, muayene_fiyati, muayene_odeme,muayene_doktor_id) values(12345678910, 50, 0,1000);
+insert into sigorta values(12345678910, true);
+insert into banka values (12345678910, '1111222233334444', '01/24', '111');
+--update muayene set muayene_odeme = 0 where muayene_hasta_tc = 12345678910;
